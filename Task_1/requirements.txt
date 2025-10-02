@@ -1,0 +1,7 @@
+notebook
+numpy
+scikit-learn
+tensorboard
+pytorch
+torchvision
+pytorch-cuda=12.1
