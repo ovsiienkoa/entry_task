@@ -3,7 +3,7 @@ from gliner import GLiNER
 from transformers import pipeline
 import argparse
 
-def predict_labels(model_type, lines:list[str], labels):
+def predict_labels(model_type, lines:list[str], labels:list[str] = ["butterfly","cat", "chicken", "cow", "dog", "elephant", "horse", "NoF", "sheep", "spider", "squirrel"]):
     """
     Performs Natural Language Processing (NLP) inference using either Named Entity Recognition (NER)
     or Zero-Shot Natural Language Inference (NLI) to extract animal mentions or determine
