@@ -35,8 +35,8 @@ def full_predict(args):
         for nlp_output in nlp_outputs:
             if nlp_output == cv_output:
                 return True
-            else:
-                return False
+
+        return False
 
 
     elif args.text_model_type == 'nli':

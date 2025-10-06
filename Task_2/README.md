@@ -62,3 +62,189 @@ In the end, the told fact about slow learning in CLIP became true, I simply don'
 P.S. I do understand, how crucial the batch size is in Contrastive learning (overall, BYOL could take the name "VRAM - is all you need") and I am really sad, that my 6GB of VRAM could handle only 64 ents per batch :(
 P.P.S. Task was actually funny, I don't know if I would ever have to do classical MNIST classification and the legendary CLIP from almost scratch (after BYOL this isn't that interesting), but now I can with all honor mark the  completion mnist classification! 
 P.P.P.S. Thanks for not rejecting my application on the very first stage and I am sorry for you having to read all this thing written by some madman who hadn't slept for 40 hours.
+#
+Generated descriptions reviewed by human:
+Description of each file:
+#
+CV_train:
+Workflow
+Initialization: The script parses command-line arguments.
+
+Dataset Creation: An instance of CVDataset is created, which loads the images, preprocesses them, applies augmentations, and calculates the class mapping.
+
+Model Initialization: An EfficientNet model is initialized with the class mapping provided by the dataset.
+
+DataLoader Setup: PyTorch DataLoader objects are created for the training and evaluation/test subsets of the data.
+
+Training: The .train() method is called to perform linear probing on the new classifier head.
+
+Saving: The trained model and associated metadata (optimizer state, class mapping) are saved to the specified checkpoint directory.
+
+Evaluation: The .eval_statistics() method is called to print the classification report, demonstrating the model's final performance.
+#
+CV_inference:
+Workflow
+Input: The script receives the path to an image file path and the model's checkpoint directory via command-line arguments.
+
+Image Prep: The image is opened using PIL and converted to the standard 'RGB' format.
+
+Prediction: The predict_labels function loads the EfficientNet model and its parameters.
+
+Transformation: The image is transformed into a tensor and preprocessed according to the model's needs.
+
+Output: The model performs the forward pass, and the resulting index is mapped back to the animal class name, which is then returned and printed.
+#
+NLP_inference:
+1) NER Workflow (model_type == "ner")
+This path uses a GLiNER model for zero-shot Named Entity Recognition to extract any mentioned animal names from the text.
+
+Model Loading: The script loads the pre-trained gliner_large-v2.5 model from Hugging Face.
+
+Label Preparation: The list of animal classes is used as the entity labels the model should search for.
+
+Inference: The predict_entities method is called on the input text with the defined animal labels.
+
+Result Aggregation:
+
+If one or more animal entities are found, their corresponding labels (animal names) are collected into a list.
+
+If no entities are found, the list contains only the placeholder label "NoF".
+
+Output: A list of lists is returned, where each inner list contains the extracted animal labels for the corresponding input sentence.
+
+2) NLI Workflow (model_type == "nli")
+This path uses a BART-based Zero-Shot Classification pipeline to determine the most likely assertion the user is making about the animals. This is designed to handle "absence" cases (e.g., "there is no cow").
+
+Hypothesis Generation: A set of candidate labels (hypotheses) is generated for the NLI classifier. For every animal in the class list (e.g., "cow"), two hypotheses are created: "there is a cow" and "there is no cow".
+
+Inference: The NLI classifier compares the input text (the premise) against all generated hypotheses and returns the one with the highest probability.
+
+Result Extraction:
+
+If the top prediction starts with "there is no ", the script extracts the animal name and prepends "not " (e.g., "there is no cow" becomes "not cow").
+
+If the top prediction starts with "there is a ", the script extracts only the animal name (e.g., "there is a horse" becomes "horse").
+
+Output: A list of strings is returned, with each string representing the text's assertion (e.g., "horse" or "not cow").
+
+3) (__main__)
+Argument Parsing: Command-line arguments (model_type, line, labels) are parsed.
+
+Inference Call: The predict_labels function is called with the arguments.
+
+Result Display: The script prints the prediction from the returned list.
+#
+Full_Pipe
+1) Image Classification (CV):
+
+The input image path is used to open the image with PIL.
+
+The CV_inference.predict_labels is called using the provided models_path.
+
+This step returns a single string: the ground truth animal label found in the image (e.g., 'horse').
+
+2) Text Analysis (NLP):
+
+The input text is passed to the NLP_inference.predict_labels function, along with the specified text_model_type ('ner' or 'nli').
+
+This step extracts the animal assertion made in the text
+3) Assertion Comparison and Output: The script uses the text_model_type to determine how to compare the text assertion with the image's ground truth.
+* If text_model_type is 'ner' (Named Entity Recognition):
+
+The NER model extracts a list of all animal entities mentioned (e.g., ['cow'] or ['NoF']).
+
+The script iterates through the extracted nlp_output list:
+
+If any extracted animal label matches the image label, the function returns True.
+
+If none of extracted animal label matches the image label, the function returns False.
+
+* If text_model_type is 'nli' (Zero-Shot Natural Language Inference):
+The NLI model provides a single assertion (e.g., 'cow' or 'not cow').
+
+The script returns True only if image predicted image label corresponds to text predicted label, or the text predicted label denies entity that wasn't predicted by vision model. 
+
+4)
+Workflow 
+Argument Parsing: The script requires four command-line arguments: input_text, input_image_path, text_model_type, and models_path.
+
+Pipeline Execution: The full_predict function is called with the parsed arguments to run the entire check.
+#
+CLIP_train
+* GLiNER_Encoder:
+
+Loads the pre-trained gliner_large-v2.5 model and its tokenizer.
+
+The GLiNER backbone (the BERT-like seq_encoder) is extracted to serve as the new text encoder.
+
+A custom text_proj_down linear layer is created to project the GLiNER backbone's 1024-dimensional output down to the 512-dimensional embedding space expected by the CLIP vision encoder.
+
+* CLIP_alt:
+
+Loads the pre-trained clip-vit-base-patch32 model and its processor.
+
+The original CLIP text encoder is replaced with the custom GLiNER_Encoder instance.
+
+Weight Freezing: All parameters in the CLIP model are frozen (requires_grad = False), except for the original CLIP text_projection layer and the new GLiNER-based text_proj_down layer. This implements linear probing only on the projection heads to align the new text encoder's embeddings with the vision encoder's space.
+
+* Data Loading and Preprocessing (CLIPDataLoader)
+Dataset Loading: The script loads the COCO captions dataset from Hugging Face for multimodal training, specifically using the validation and test splits because of their sizes
+
+
+The CLIP processor is used for image pre-processing (pixel_values).
+
+The GLiNER-based tokenizer is used for text tokenization (input_ids, attention_mask).
+
+Tokenization and Mapping:
+
+The CLIPDataLoader initializes by applying a tokenize_function over the entire dataset using dataset.map(). 
+This function extracts the first caption from the sentences_raw list and applies the custom GLiNER's preprocessing.
+
+DataLoader Creation: A standard PyTorch DataLoader is created, wrapping the tokenized dataset.
+
+* Training and Evaluation (train and eval functions)
+Optimizer and Scheduler:
+
+An AdamW optimizer is initialized to update only the trainable parameters (the two projection layers).
+
+A CosineAnnealingWarmRestarts scheduler is used for learning rate management.
+
+The contrastive loss (returned as the first element of the output tuple) is calculated and used for backpropagation and optimization.
+
+Losses are logged to TensorBoard every 30 steps.
+
+The model checkpoint is saved every 60 steps.
+
+The learning rate scheduler is stepped.
+
+Evaluation (eval):
+
+Runs the model in torch.no_grad() mode over the evaluation dataset.
+
+Calculates and returns the average contrastive loss on the evaluation set to monitor training progress.
+#
+CLIP_inference
+Workflow (predict function)
+* Input Gathering: The function receives the desired model_type ('base' or 'gliner'), a list of candidate possible captions (e.g., animal names), a list of input images (as PIL objects), and the model_path (if using the custom model).
+
+If model_type is 'base' (Standard CLIP):
+The script loads the standard openai/clip-vit-base-patch32 model using the Hugging Face zero-shot-image-classification pipeline.
+
+
+If model_type is 'gliner' (Custom CLIP):
+An instance of the custom CLIP_alt model is created.
+
+The script loads the trained weights for the custom model from the specified model_path (using the fixed hint "120")(amount of batches that model was trained on).
+
+Output: A list of predicted text labels (strings) is returned, with one label for each input image.
+
+* Execution Workflow (__main__)
+Argument Parsing: The script takes command-line arguments for the model_type, a space-separated list of candidate labels (text strings), a list of images_paths, and the model_checkpoint_dir.
+
+Image Loading: The script iterates through the input image paths, opens each one using PIL, and stores them in a list.
+
+Image Display: A loop iterates through the loaded images and calls image.show() to visually display the inputs.
+
+Inference Call: The predict function is called to perform the zero-shot classification.
+
+Result Display: The list of predicted labels for all input images is printed to the console.
