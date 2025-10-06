@@ -3,40 +3,75 @@ from gliner import GLiNER
 from transformers import pipeline
 import argparse
 
-def predict_labels(model_type, line, labels):
+def predict_labels(model_type, lines:list[str], labels):
+    """
+    Performs Natural Language Processing (NLP) inference using either Named Entity Recognition (NER)
+    or Zero-Shot Natural Language Inference (NLI) to extract animal mentions or determine
+    the text's assertion regarding animals.
+
+    Args:
+        model_type (str): The type of NLP task: 'ner' for entity extraction or 'nli' for zero-shot classification.
+        lines (list[str]): A list of input text strings to process.
+        labels (list[str]): A list of possible animal class names (including 'NoF' for NER).
+
+    Returns:
+        list: A list of predictions.
+              - For 'ner': A list of lists, where each inner list contains the predicted animal labels (strings)
+                for the corresponding input line. Returns ["NoF"] if no entity is found.
+              - For 'nli': A list of strings, where each string is the predicted animal assertion
+                (e.g., "horse" or "not cow").
+
+    Raises:
+        NotImplementedError: If the specified model_type is not 'ner' or 'nli'.
+    """
+    # Ensure the input is treated as a list of strings
+    if isinstance(lines, str):
+        lines = [lines]
+
+    true_predictions = []
     if model_type == "ner":
         model = GLiNER.from_pretrained("gliner-community/gliner_large-v2.5", load_tokenizer=True)
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         model.to(device)
         try:
-            labels.remove("NoF")
+            labels.remove("NoF") # Remove the 'NoF' (No Found) placeholder label, as it's not a real entity class
         except:
-            pass
+            pass # 'NoF' was not in the list, no need to worry
 
-        predictions = model.predict_entities(line, labels, threshold=0.75)
-        true_predictions = []
-        for prediction in predictions:
-            true_predictions.append(prediction["label"])
-        if len(predictions) == 0:
-            return "NoF"
+        for line in lines:
+            predictions = model.predict_entities(line, labels, threshold=0.75)
+            true_prediction = []
+            for prediction in predictions:
+                true_prediction.append(prediction["label"]) # Extract the predicted label for each entity found
+            if len(predictions) == 0: # If no entities were found, append "NoF" to signify no animal was mentioned
+                true_prediction.append("NoF")
+
+            true_predictions.append(true_prediction)
 
     elif model_type == "nli":
+
         classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
-
+        # Prepare the candidate labels (hypotheses) for NLI
         nli_classes = []
+        try:
+            labels.remove("NoF") # Remove the 'NoF' (No Found) placeholder label, as it's not a real entity class
+        except:
+            pass # 'NoF' was not in the list, no need to worry
 
+        # For each animal, create two hypotheses: one asserting its presence, one its absence.
         for animal in labels:
-            labels.extend([f"there is a {animal}", f"there is no {animal}"])
+            nli_classes.extend([f"there is a {animal}", f"there is no {animal}"])
+        for line in lines:
+            prediction = classifier(line, nli_classes)
+            prediction = prediction["labels"][0] # The highest probability label (hypothesis) is used
 
-        prediction = classifier(line, nli_classes)
-        prediction = prediction["labels"][0]
-
-
-        if prediction.startswith("there is no "):
-            true_predictions = "not " + prediction[12:]
-        elif prediction.startswith("there is a "):
-            true_predictions = prediction[11:]
+            if prediction.startswith("there is no "):
+                true_predictions.append("not " + prediction[12:])  # Extract the animal name and prepend "not "
+            elif prediction.startswith("there is a "):
+                true_predictions.append(prediction[11:]) # Extract only the animal name
+    else:
+        raise NotImplementedError
 
     return true_predictions
 
@@ -51,7 +86,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--line",
         type=str,
-        default='omg, is it a horse?! I mean... maybe its a cow',
+        default="omg, is it a horse?! I mean... maybe it's not a cow",
         help="input text, MUST BE IN DOUBLE QUOTES"
     )
     parser.add_argument(
@@ -63,7 +98,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    print(args.labels)
     output = predict_labels(args.model_type, args.line, args.labels)
-    print(output)
+    print(output[0]) #because we always request only 1 string
 
