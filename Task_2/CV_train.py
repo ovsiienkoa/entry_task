@@ -201,7 +201,13 @@ class EfficientNet:
 
             self.optimizer.zero_grad()
 
-            features, targets = next(iterator)
+            try:
+                features, targets = next(iterator)
+            except StopIteration:
+                # Re-initialize iterator if all data has been processed (useful for fixed steps)
+                iterator = iter(train_dataloader)
+                features, targets = next(iterator)
+
             features = features.to(self.device)
 
             prediction = self.model(features)
