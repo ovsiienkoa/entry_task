@@ -32,7 +32,7 @@ def predict(model_type, texts, images:list[Image], model_path:str):
         true_output = [prediction[0]["label"] for prediction in output]
     elif model_type =='gliner':
         model = CLIP_alt()
-        model.load(model_path,"60")
+        model.load(model_path,"120")
         tokens = model.preprocess(texts, images)
         output_ids = model.predict(tokens)
         # Map the predicted text index back to the actual text string label

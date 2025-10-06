@@ -363,7 +363,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--train_steps",
         type=int,
-        default=400,
+        default=300,
         help="Number of processed batches during training."
     )
 

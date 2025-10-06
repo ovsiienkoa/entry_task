@@ -335,7 +335,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     model = CLIP_alt()
     try:
-        model.load(args.model_path, "60")
+        model.load(args.model_path, "120")
     except:
         print("No model loaded.")
 
