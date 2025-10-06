@@ -5,18 +5,37 @@ from transformers import pipeline
 import argparse
 from PIL import Image
 def predict(model_type, texts, images:list[Image], model_path:str):
+    """
+    Performs zero-shot image classification using either a standard CLIP model or
+    a fine-tuned CLIP model with a GLiNER text encoder.
+
+    Args:
+        model_type (str): The model variant to use: 'base' for standard CLIP pipeline,
+                          or 'gliner' for the custom fine-tuned CLIP_alt model.
+        texts (List[str]): A list of candidate text labels/captions to classify the image against.
+        images (List[Image.Image]): A list of input images as PIL Image objects.
+        model_path (str): Directory path where the custom 'gliner' model checkpoints are saved.
+
+    Returns:
+        List[str]: A list of predicted labels (text strings) for each input image.
+
+    Raises:
+        NotImplementedError: If the specified model_type is not 'base' or 'gliner'.
+    """
     if model_type =='base':
         pipe = pipeline("zero-shot-image-classification", model="openai/clip-vit-base-patch32")
         output = pipe(
             images,
             candidate_labels=texts,
         )
+        # The pipeline output is a list of lists of dictionaries. Extract the top predicted label.
         true_output = [prediction[0]["label"] for prediction in output]
     elif model_type =='gliner':
         model = CLIP_alt()
         model.load(model_path,"60")
         tokens = model.preprocess(texts, images)
         output_ids = model.predict(tokens)
+        # Map the predicted text index back to the actual text string label
         true_output = [texts[output_id] for output_id in output_ids]
     else:
         raise NotImplementedError
